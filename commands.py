@@ -1,10 +1,6 @@
-import discord
-from discord.ext import commands
 import json
 import os
-
 from checkers import normalize_url
-  # ✅ IMPORT added here
 
 STORAGE_FILE = 'storage.json'
 
@@ -20,16 +16,16 @@ VALID_MC_VERSIONS = [
 ]
 
 if not os.path.exists(STORAGE_FILE):
-    with open(STORAGE_FILE, 'w') as f:
-        json.dump({}, f)
+    with open(STORAGE_FILE, 'w') as file:
+        json.dump({}, file)
 
 def load_storage():
-    with open(STORAGE_FILE, 'r') as f:
-        return json.load(f)
+    with open(STORAGE_FILE, 'r') as file:
+        return json.load(file)
 
 def save_storage(data):
-    with open(STORAGE_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    with open(STORAGE_FILE, 'w') as file:
+        json.dump(data, file, indent=2)
 
 async def setup(bot):
     @bot.command()
@@ -39,20 +35,18 @@ async def setup(bot):
         if gid not in data:
             data[gid] = {"mods": []}
 
-        url = normalize_url(url.strip())  # ✅ Normalize the URL
+        url = normalize_url(url.strip())
 
         mc_versions_list = [v.strip().lower() for v in mc_versions.split(',')] if mc_versions else ["all"]
         loaders_list = [l.strip().lower() for l in loaders.split(',')] if loaders else ["all"]
 
         invalid_loaders = [l for l in loaders_list if l not in VALID_LOADERS]
         if invalid_loaders:
-            return await ctx.send(
-                f"Invalid loader(s): {', '.join(invalid_loaders)}\nAllowed: {', '.join(VALID_LOADERS)}")
+            return await ctx.send(f"Invalid loader(s): {', '.join(invalid_loaders)}\nAllowed: {', '.join(VALID_LOADERS)}")
 
         invalid_versions = [v for v in mc_versions_list if v not in VALID_MC_VERSIONS]
         if invalid_versions:
-            return await ctx.send(
-                f"Invalid Minecraft version(s): {', '.join(invalid_versions)}\nAllowed: {', '.join(VALID_MC_VERSIONS)}")
+            return await ctx.send(f"Invalid Minecraft version(s): {', '.join(invalid_versions)}\nAllowed: {', '.join(VALID_MC_VERSIONS)}")
 
         existing = data[gid]["mods"]
         already_added = any(
@@ -74,7 +68,7 @@ async def setup(bot):
 
     @bot.command()
     async def remove(ctx, url):
-        url = normalize_url(url.strip())  # ✅ Normalize the URL before removing
+        url = normalize_url(url.strip())
         data = load_storage()
         gid = str(ctx.guild.id)
         if gid in data:
@@ -84,6 +78,15 @@ async def setup(bot):
             save_storage(data)
             await ctx.send(f"Removed {before - after} mod(s) with that URL.")
 
-    @bot.command()
-    async def list(ctx):
-        data = loa
+    @bot.command(name="listmods")
+    async def listmods(ctx):
+        data = load_storage()
+        gid = str(ctx.guild.id)
+        if gid not in data or not data[gid]["mods"]:
+            return await ctx.send("No mods are being tracked.")
+
+        msg = "Currently tracked mods:\n"
+        for mod in data[gid]["mods"]:
+            msg += f"- {mod['url']} (MC: {', '.join(mod['mc_versions'])}, Loaders: {', '.join(mod['loaders'])})\n"
+
+        await ctx.send(msg)
