@@ -1,51 +1,47 @@
+import asyncio
+import json
 import discord
 from discord.ext import commands
-import json
-import asyncio
 
-intents = discord.Intents.default()
-intents.message_content = True
+from commands.mod_commands import ModCommands
+from core.updater import start_updater
 
-bot = commands.Bot(command_prefix="/", intents=intents)
 
-async def load_config():
-    with open("config.json") as f:
-        return json.load(f)
+with open("config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
 
-async def setup_commands(bot):
-    from commands import setup as setup_commands_module
-    await setup_commands_module(bot)
 
-async def setup_updater(bot):
-    from updater import setup as setup_updater_module
-    await setup_updater_module(bot)
+class ModBot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            application_id=config["application_id"]
+        )
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
-    if hasattr(bot, "startup_task"):
-        try:
-            await bot.startup_task()
-        except Exception as e:
-            print(f"[ERROR] Startup task failed: {e}")
+    async def setup_hook(self):
+        print("Setup hook running")
 
-async def main():
-    config = await load_config()
+        await self.add_cog(ModCommands(self, config))
+        print("Cog loaded")
 
-    try:
-        await setup_commands(bot)
-    except Exception as e:
-        print(f"[ERROR] Failed to load commands: {e}")
+        guild = discord.Object(id=config["guild_id"])
 
-    try:
-        await setup_updater(bot)
-    except Exception as e:
-        print(f"[ERROR] Failed to set up updater: {e}")
+        # 🔥 CRITICAL LINE
+        self.tree.copy_global_to(guild=guild)
 
-    try:
-        await bot.start(config["token"])
-    except Exception as e:
-        print(f"[ERROR] Bot failed to start: {e}")
+        # Optional one-time clean reset
+        await self.tree.sync(guild=guild)
+
+        print("Guild synced.")
+        print("Guild commands:", self.tree.get_commands(guild=guild))
+
+        start_updater(self, config)
+
+
+bot = ModBot()
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(bot.start(config["token"]))
