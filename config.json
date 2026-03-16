@@ -1,0 +1,10 @@
+{
+  "token": "<bot token here>",
+  "application_id": <application id here>,
+  "owner_id": <owner account id here>,
+  "update_interval_minutes": 5,
+  "guild_id": <server id/'s here>,
+  "info": {
+    "version": "2.0.0"
+  }
+}
