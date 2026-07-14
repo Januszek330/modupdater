@@ -5,35 +5,19 @@ A private Discord bot that monitors Minecraft mods for updates on Modrinth. It a
 Features
 Checks mods on:
 Modrinth (via official API)
-
 Supports filtering by Minecraft versions and mod loaders
-
 Scheduled update checks every 5 minutes
-
-Lightweight and extensible design
+Built in Modrinth search
 
 Requirements
 Python 3.11+
-
-Playwright (for fallback when CurseForge API is unavailable)
-
 A Discord bot token
-
-Optional: CurseForge API Key
+A Discord application id
+A Discord owners user id
 
 Installation
-Clone the repository
-
-git clone https://github.com/yourusername/mod-update-checker-bot.git
-cd mod-update-checker-bot
-
-Install dependencies
-
-pip install -r requirements.txt
-playwright install
-
-Configure config.json
-
+Use the installer.exe
+Optionally download every file and folder, into a chosen root folder of the bot
 Run the bot
 
 python bot.py
