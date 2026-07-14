@@ -1,71 +1,80 @@
 import asyncio
+from core.logger import logger
 from core.storage import load_storage, save_storage
-from core.cache import get_cached, set_cached
 from services.modrinth import get_versions
-from core.embeds import build_update_embed
+
+
+def start_updater(bot, config):
+    bot.loop.create_task(updater_loop(bot, config))
+    logger.info("Mod update checks scheduler registered and running correctly.")
+
+
+async def updater_loop(bot, config):
+    await bot.wait_until_ready()
+    interval = config.get("check_interval_seconds", 300)
+
+    while not bot.is_closed():
+        try:
+            logger.info("Starting background modpack update verification sequence...")
+            await run_update_cycle(bot, config)
+            logger.info("Background update checks complete. Sleep cycle initiated.")
+        except Exception as e:
+            logger.error(f"Exception encountered inside update verification loop: {e}")
+
+        await asyncio.sleep(interval)
 
 
 async def run_update_cycle(bot, config):
     data = await load_storage()
-    ttl = config.get("update_interval_minutes", 5) * 60
+    guilds = data.get("guilds", {})
 
-    for guild_id, guild_data in data["guilds"].items():
+    for guild_id, guild_data in guilds.items():
         mods = guild_data.get("mods", [])
+        default_channel_id = guild_data.get("default_channel")
 
         for mod in mods:
             slug = mod["slug"]
-
-            versions = get_cached(slug, "versions", ttl)
-            if not versions:
+            try:
+                # Modrinth Fetch
                 versions = await get_versions(slug)
-                if versions:
-                    set_cached(slug, "versions", versions, ttl)
+                if not versions:
+                    continue
 
-            if not versions:
-                continue
+                newest_version = versions[0]
+                newest_version_id = newest_version["id"]
+                newest_version_number = newest_version["version_number"]
 
-            latest = versions[0]
-            version_number = latest["version_number"]
+                # If this is the initial scan or the version changed
+                if mod.get("last_version") != newest_version_id:
+                    if mod.get("last_version") is not None:
+                        # Log and notify the discord channel about the update
+                        logger.info(
+                            f"Update detected for '{mod['title']}'! Old: {mod.get('last_version')}, New: {newest_version_number}")
+                        await notify_guild(bot, guild_id, default_channel_id, mod, newest_version)
 
-            if mod.get("last_version") == version_number:
-                continue
-
-            mod["last_version"] = version_number
-
-            channel_id = mod.get("channel_id") or guild_data.get("default_channel")
-            if not channel_id:
-                continue
-
-            channel = bot.get_channel(channel_id)
-            if not channel:
-                continue
-
-            embed = build_update_embed(
-                name=mod["title"],
-                version=version_number,
-                game_versions=latest.get("game_versions", []),
-                loaders=latest.get("loaders", []),
-                url=f"https://modrinth.com/project/{slug}",
-                project_type=mod["project_type"],
-                version_type=latest.get("version_type", "release")
-            )
-
-            content = ""
-            if guild_data.get("role_id"):
-                content = f"<@&{guild_data['role_id']}>"
-
-            await channel.send(content=content, embed=embed)
+                    mod["last_version"] = newest_version_id
+            except Exception as api_err:
+                logger.error(f"Modrinth API failure checking updates for {slug}: {api_err}")
 
     await save_storage(data)
 
 
-async def check_updates(bot, config):
-    interval = config.get("update_interval_minutes", 5)
+async def notify_guild(bot, guild_id, default_channel_id, mod, version_data):
+    try:
+        channel_id = mod.get("channel_id") or default_channel_id
+        if not channel_id:
+            return
 
-    while True:
-        await run_update_cycle(bot, config)
-        await asyncio.sleep(interval * 60)
+        channel = bot.get_channel(int(channel_id))
+        if not channel:
+            return
 
-
-def start_updater(bot, config):
-    bot.loop.create_task(check_updates(bot, config))
+        embed = discord.Embed(
+            title=f"Update Detected: {mod['title']}",
+            description=f"New version **{version_data['version_number']}** is now available!",
+            url=f"https://modrinth.com/project/{mod['slug']}",
+            color=discord.Color.green()
+        )
+        await channel.send(embed=embed)
+    except Exception as e:
+        logger.error(f"Failed to post update notification to guild {guild_id}: {e}")
