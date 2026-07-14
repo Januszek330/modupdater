@@ -18,6 +18,7 @@ A Discord owners user id
 Installation
 Use the installer.exe
 Optionally download every file and folder, into a chosen root folder of the bot
+
 Run the bot
 
 python bot.py
